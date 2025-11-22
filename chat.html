@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OrbitChat</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ably/browser/static/ably.min.js"></script>
+
+<style>
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  background: linear-gradient(135deg, #4a00e0, #8e2de2);
+  font-family: 'Inter', sans-serif;
+  color: white;
+}
+
+.sidebar {
+  width: 200px;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(14px);
+  padding: 20px;
+  box-shadow: 0 0 30px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.user {
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 10px;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+  margin-bottom: 10px;
+}
+
+.message {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 12px;
+  max-width: 60%;
+  word-wrap: break-word;
+}
+
+.message.self {
+  background: rgba(255,255,255,0.4);
+  margin-left: auto;
+}
+
+.input-bar {
+  display: flex;
+  gap: 10px;
+}
+
+input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+}
+
+button {
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover { background: #f1e8ff; }
+
+.typing {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h3>Online Users</h3>
+  <div id="users"></div>
+</div>
+
+<div class="main">
+  <div class="messages" id="messages"></div>
+  <div class="typing" id="typing"></div>
+  <div class="input-bar">
+    <input id="msgInput" placeholder="Type a message..." />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+// --- Supabase Auth ---
+const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbGlkcXVkc2Rmb3l6YmFtd3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NjEyMTMsImV4cCI6MjA3OTMzNzIxM30.Hhf5C14okA4GbYpLUmRugymI-E9YerunpVBgz5eZxrE";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Check logged-in user
+supabase.auth.getSession().then(({ data }) => {
+  if (!data.session) window.location.href = "login.html";
+});
+let currentUser = null;
+supabase.auth.getUser().then(({ data }) => {
+  if(data.user) currentUser = data.user;
+});
+
+// --- Ably Realtime ---
+const ably = new Ably.Realtime("dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I");
+const channel = ably.channels.get("social-chat");
+
+// --- Presence ---
+const presenceChannel = ably.channels.get("social-chat");
+const usersDiv = document.getElementById("users");
+
+// Enter presence
+presenceChannel.presence.enter(currentUser ? currentUser.email : "Anonymous");
+
+// Track presence updates
+presenceChannel.presence.subscribe((member) => updateUsers());
+presenceChannel.presence.get((err, members) => updateUsers());
+
+function updateUsers() {
+  presenceChannel.presence.get((err, members) => {
+    usersDiv.innerHTML = "";
+    members.forEach(m => {
+      const div = document.createElement("div");
+      div.className = "user";
+      div.textContent = m.clientId;
+      usersDiv.appendChild(div);
+    });
+  });
+}
+
+// --- Messages ---
+const messagesDiv = document.getElementById("messages");
+const typingDiv = document.getElementById("typing");
+let typingTimeout = null;
+
+channel.subscribe("message", msg => {
+  const div = document.createElement("div");
+  div.className = "message" + (msg.clientId===currentUser.email ? " self" : "");
+  div.textContent = `${msg.clientId}: ${msg.data}`;
+  messagesDiv.appendChild(div);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  typingDiv.textContent = "";
+});
+
+channel.subscribe("typing", msg => {
+  typingDiv.textContent = msg.data;
+  if(typingTimeout) clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(()=>typingDiv.textContent="", 2000);
+});
+
+// --- Send message ---
+function sendMessage() {
+  const input = document.getElementById("msgInput");
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = "";
+  channel.publish("message", text);
+}
+
+// --- Typing detection ---
+const inputField = document.getElementById("msgInput");
+inputField.addEventListener("input", () => {
+  channel.publish("typing", currentUser ? `${currentUser.email} is typing...` : "Anonymous is typing...");
+});
+</script>
+
+</body>
+</html>
