@@ -51,6 +51,20 @@
     font-size: 15px;
   }
 
+  .password-wrapper {
+    position: relative;
+  }
+
+  .show-hide {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+    user-select: none;
+  }
+
   button {
     width: 100%;
     padding: 12px;
@@ -77,7 +91,15 @@
   }
 
   .toggle:hover { text-decoration: underline; }
-  #status { color: #fff; margin-top: 12px; font-size: 14px; min-height: 18px; }
+
+  #status {
+    margin-top: 12px;
+    font-size: 14px;
+    min-height: 18px;
+  }
+
+  .error { color: #ff6961; }
+  .success { color: #7CFC00; }
 </style>
 </head>
 
@@ -86,7 +108,11 @@
   <h2 id="modeTitle">Login</h2>
 
   <input id="email" type="email" placeholder="Email" />
-  <input id="password" type="password" placeholder="Password" />
+
+  <div class="password-wrapper">
+    <input id="password" type="password" placeholder="Password" />
+    <span class="show-hide" onclick="togglePassword()">Show</span>
+  </div>
 
   <button onclick="authenticate()">Login</button>
 
@@ -114,24 +140,61 @@ function toggleMode() {
     mode === "login"
       ? "Don't have an account? Create one"
       : "Already have an account? Login";
-  document.getElementById("status").innerText = "";
+  const status = document.getElementById("status");
+  status.innerText = "";
+  status.className = "";
+}
+
+function togglePassword() {
+  const passInput = document.getElementById("password");
+  const toggle = document.querySelector(".show-hide");
+  if (passInput.type === "password") {
+    passInput.type = "text";
+    toggle.innerText = "Hide";
+  } else {
+    passInput.type = "password";
+    toggle.innerText = "Show";
+  }
 }
 
 async function authenticate() {
-  const email = document.getElementById("email").value;
-  const pass = document.getElementById("password").value;
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("password").value.trim();
   const status = document.getElementById("status");
 
+  if (!email || !pass) {
+    status.innerText = "Please enter both email and password.";
+    status.className = "error";
+    return;
+  }
+
   status.innerText = "Please wait...";
+  status.className = "";
 
   if (mode === "login") {
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) status.innerText = error.message;
-    else window.location.href = "chat.html";
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      status.innerText = error.message.includes("Invalid login credentials")
+        ? "Account not found or wrong password."
+        : error.message;
+      status.className = "error";
+    } else {
+      status.innerText = "Login successful!";
+      status.className = "success";
+      setTimeout(() => window.location.href = "chat.html", 800);
+    }
   } else {
-    const { error } = await supabase.auth.signUp({ email, password: pass });
-    if (error) status.innerText = error.message;
-    else status.innerText = "Account created! You can now log in.";
+    const { data, error } = await supabase.auth.signUp({ email, password: pass });
+    if (error) {
+      status.innerText = error.message.includes("User already registered")
+        ? "An account with this email already exists."
+        : error.message;
+      status.className = "error";
+    } else {
+      status.innerText = "Account created successfully! You can now log in.";
+      status.className = "success";
+      toggleMode(); // Switch to login automatically
+    }
   }
 }
 </script>
