@@ -116,34 +116,29 @@ button:hover { background: #f1e8ff; }
     <button onclick="sendMessage()">Send</button>
   </div>
 </div>
-
 <script>
 // --- Supabase Auth ---
-const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbGlkcXVkc2Rmb3l6YmFtd3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NjEyMTMsImV4cCI6MjA3OTMzNzIxM30.Hhf5C14okA4GbYpLUmRugymI-E9YerunpVBgz5eZxrE";
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Check logged-in user
+let currentUser = null;
 supabase.auth.getSession().then(({ data }) => {
   if (!data.session) window.location.href = "login.html";
 });
-let currentUser = null;
 supabase.auth.getUser().then(({ data }) => {
   if(data.user) currentUser = data.user;
 });
 
 // --- Ably Realtime ---
-const ably = new Ably.Realtime("dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I");
+const ably = new Ably.Realtime("YOUR_ABLY_API_KEY");
 const channel = ably.channels.get("social-chat");
 
 // --- Presence ---
 const presenceChannel = ably.channels.get("social-chat");
 const usersDiv = document.getElementById("users");
-
-// Enter presence
 presenceChannel.presence.enter(currentUser ? currentUser.email : "Anonymous");
 
-// Track presence updates
 presenceChannel.presence.subscribe((member) => updateUsers());
 presenceChannel.presence.get((err, members) => updateUsers());
 
@@ -164,27 +159,47 @@ const messagesDiv = document.getElementById("messages");
 const typingDiv = document.getElementById("typing");
 let typingTimeout = null;
 
-channel.subscribe("message", msg => {
+// Load chat history from Supabase
+async function loadHistory() {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if(error) console.log(error);
+  else {
+    data.forEach(msg => displayMessage(msg.user_id, msg.content, msg.user_id === currentUser.email));
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+}
+
+// Display message
+function displayMessage(user, text, self=false) {
   const div = document.createElement("div");
-  div.className = "message" + (msg.clientId===currentUser.email ? " self" : "");
-  div.textContent = `${msg.clientId}: ${msg.data}`;
+  div.className = "message" + (self ? " self" : "");
+  div.textContent = `${user}: ${text}`;
   messagesDiv.appendChild(div);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Subscribe to new messages in Ably
+channel.subscribe("message", msg => {
+  displayMessage(msg.clientId, msg.data, msg.clientId === currentUser.email);
   typingDiv.textContent = "";
 });
 
-channel.subscribe("typing", msg => {
-  typingDiv.textContent = msg.data;
-  if(typingTimeout) clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(()=>typingDiv.textContent="", 2000);
-});
-
 // --- Send message ---
-function sendMessage() {
+async function sendMessage() {
   const input = document.getElementById("msgInput");
   const text = input.value.trim();
   if(!text) return;
   input.value = "";
+
+  const userEmail = currentUser ? currentUser.email : "Anonymous";
+
+  // Save to Supabase
+  await supabase.from('messages').insert([{ user_id: userEmail, content: text }]);
+
+  // Publish to Ably
   channel.publish("message", text);
 }
 
@@ -193,6 +208,9 @@ const inputField = document.getElementById("msgInput");
 inputField.addEventListener("input", () => {
   channel.publish("typing", currentUser ? `${currentUser.email} is typing...` : "Anonymous is typing...");
 });
+
+// Load history on page load
+loadHistory();
 </script>
 
 </body>
