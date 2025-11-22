@@ -114,9 +114,9 @@
     <span class="show-hide" onclick="togglePassword()">Show</span>
   </div>
 
-  <button onclick="authenticate()">Login</button>
+  <button id="authButton" onclick="authenticate()">Login</button>
 
-  <div class="toggle" onclick="toggleMode()">
+  <div id="toggleDiv" class="toggle" onclick="toggleMode()">
     Don't have an account? Create one
   </div>
 
@@ -132,14 +132,13 @@ let mode = "login";
 
 function toggleMode() {
   mode = mode === "login" ? "signup" : "login";
-  document.getElementById("modeTitle").innerText =
-    mode === "login" ? "Login" : "Create Account";
-  document.querySelector("button").innerText =
-    mode === "login" ? "Login" : "Sign Up";
-  document.querySelector(".toggle").innerText =
-    mode === "login"
-      ? "Don't have an account? Create one"
-      : "Already have an account? Login";
+
+  document.getElementById("modeTitle").innerText = mode === "login" ? "Login" : "Create Account";
+  document.getElementById("authButton").innerText = mode === "login" ? "Login" : "Sign Up";
+  document.getElementById("toggleDiv").innerText = mode === "login"
+    ? "Don't have an account? Create one"
+    : "Already have an account? Login";
+
   const status = document.getElementById("status");
   status.innerText = "";
   status.className = "";
