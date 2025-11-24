@@ -1,217 +1,409 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>OrbitChat</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Social Chat</title>
 
+<!-- Supabase + Ably -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ably/browser/static/ably.min.js"></script>
 
 <style>
-body {
-  margin: 0;
-  height: 100vh;
-  display: flex;
-  background: linear-gradient(135deg, #4a00e0, #8e2de2);
-  font-family: 'Inter', sans-serif;
-  color: white;
-}
+  :root{
+    --bg1:#4a00e0;
+    --bg2:#8e2de2;
+    --glass: rgba(255,255,255,0.12);
+    --glass-strong: rgba(255,255,255,0.18);
+    --white-soft: rgba(255,255,255,0.95);
+  }
+  html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{
+    background: linear-gradient(135deg,var(--bg1),var(--bg2));
+    color:var(--white-soft);
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
 
-.sidebar {
-  width: 200px;
-  background: rgba(255,255,255,0.1);
-  backdrop-filter: blur(14px);
-  padding: 20px;
-  box-shadow: 0 0 30px rgba(0,0,0,0.25);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
+  /* Container */
+  .app {
+    height:100vh;
+    display:grid;
+    grid-template-columns:260px 1fr;
+    gap:20px;
+    padding:24px;
+    box-sizing:border-box;
+  }
 
-.sidebar h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-}
+  /* Sidebar */
+  .sidebar {
+    background:var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius:14px;
+    padding:18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  .sidebar .top {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:12px;
+  }
+  .room-title { font-weight:700; font-size:16px; }
+  .logout-btn {
+    background:transparent;
+    color:var(--white-soft);
+    border:1px solid rgba(255,255,255,0.08);
+    padding:6px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13px;
+  }
 
-.user {
-  padding: 8px 12px;
-  margin-bottom: 10px;
-  background: rgba(255,255,255,0.2);
-  border-radius: 10px;
-}
+  .users-list { overflow:auto; margin-top:8px; padding-right:6px; }
+  .user {
+    display:flex; align-items:center; gap:10px;
+    padding:8px; border-radius:10px; margin-bottom:8px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.03), transparent);
+  }
+  .avatar {
+    width:36px;height:36px;border-radius:50%;flex:0 0 36px;object-fit:cover;border:2px solid rgba(255,255,255,0.08);
+  }
+  .user .u-meta { display:flex; flex-direction:column; line-height:1; }
+  .u-name { font-weight:600; font-size:14px; }
+  .u-status { font-size:12px; opacity:0.8; }
 
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-}
+  /* Main chat panel */
+  .panel {
+    display:flex; flex-direction:column; background:var(--glass);
+    padding:14px; border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    min-height:0;
+    overflow: hidden;
+  }
 
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 10px;
-  margin-bottom: 10px;
-}
+  .messages {
+    flex:1; overflow:auto; padding:10px; display:flex; flex-direction:column; gap:8px;
+  }
 
-.message {
-  margin-bottom: 8px;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.15);
-  border-radius: 12px;
-  max-width: 60%;
-  word-wrap: break-word;
-}
+  .msg {
+    max-width:70%;
+    padding:10px 12px;
+    border-radius:12px;
+    background: rgba(255,255,255,0.06);
+    line-height:1.35;
+    word-wrap:break-word;
+  }
+  .msg.self { margin-left:auto; background: rgba(255,255,255,0.22); color:#111; }
+  .msg .meta { font-size:12px; opacity:0.9; margin-bottom:6px; font-weight:600; }
+  .msg .text { font-size:14px; white-space:pre-wrap; }
 
-.message.self {
-  background: rgba(255,255,255,0.4);
-  margin-left: auto;
-}
+  .typing { font-size:13px; opacity:0.85; margin:6px 10px; }
 
-.input-bar {
-  display: flex;
-  gap: 10px;
-}
+  .input-row {
+    display:flex; gap:10px; align-items:center; margin-top:12px;
+  }
+  .message-input {
+    flex:1; padding:12px 14px; border-radius:12px; border:none; outline:none;
+    background: rgba(255,255,255,0.06); color:var(--white-soft); font-size:14px;
+  }
+  .send-btn {
+    min-width:90px; padding:10px 14px; border-radius:12px; border:none; font-weight:700;
+    background:linear-gradient(90deg,#ffffff,#f1e8ff); color:#111; cursor:pointer;
+  }
 
-input {
-  flex: 1;
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  outline: none;
-}
+  /* Header small */
+  .header {
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+  }
+  .header .subtitle { opacity:0.9; font-size:13px; }
 
-button {
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  background: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-button:hover { background: #f1e8ff; }
-
-.typing {
-  font-size: 13px;
-  opacity: 0.8;
-  margin-bottom: 8px;
-}
+  /* Responsive */
+  @media (max-width:900px){
+    .app { grid-template-columns:1fr; padding:12px; gap:12px; }
+    .sidebar { order:2; height:140px; overflow:auto; }
+    .panel { order:1; }
+  }
 </style>
 </head>
 <body>
 
-<div class="sidebar">
-  <h3>Online Users</h3>
-  <div id="users"></div>
+<div class="app">
+  <!-- Sidebar / users -->
+  <aside class="sidebar">
+    <div class="top">
+      <div>
+        <div class="room-title">Creature Chaos — Social Chat</div>
+        <div class="subtitle" style="font-size:12px; opacity:0.85;">#general</div>
+      </div>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+
+    <div style="font-size:13px; opacity:0.9; margin-bottom:8px;">Online</div>
+    <div class="users-list" id="usersList"></div>
+  </aside>
+
+  <!-- Main panel -->
+  <main class="panel">
+    <div class="header">
+      <div>
+        <div style="font-weight:700; font-size:18px;">#general</div>
+        <div class="subtitle">Public chat — Be kind, keep it safe</div>
+      </div>
+      <div id="youInfo" style="opacity:0.9; font-size:13px;"></div>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="typing" id="typing"></div>
+
+    <div class="input-row">
+      <input id="msgInput" class="message-input" placeholder="Say something..." autocomplete="off" />
+      <button id="sendBtn" class="send-btn">Send</button>
+    </div>
+  </main>
 </div>
 
-<div class="main">
-  <div class="messages" id="messages"></div>
-  <div class="typing" id="typing"></div>
-  <div class="input-bar">
-    <input id="msgInput" placeholder="Type a message..." />
-    <button onclick="sendMessage()">Send</button>
-  </div>
-</div>
 <script>
-// --- Supabase Auth ---
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+/* --------------------- CONFIG: REPLACE THESE --------------------- */
+const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbGlkcXVkc2Rmb3l6YmFtd3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NjEyMTMsImV4cCI6MjA3OTMzNzIxM30.Hhf5C14okA4GbYpLUmRugymI-E9YerunpVBgz5eZxrE";
+const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
+/* ----------------------------------------------------------------- */
+
+/* default avatar (uploaded file). the platform will transform this local path into a usable URL */
+const DEFAULT_AVATAR_PATH = "/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png";
+
+/* initialize clients */
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
-supabase.auth.getSession().then(({ data }) => {
-  if (!data.session) window.location.href = "login.html";
-});
-supabase.auth.getUser().then(({ data }) => {
-  if(data.user) currentUser = data.user;
-});
+let ably = null;
+let channel = null;
+let presenceChannel = null;
 
-// --- Ably Realtime ---
-const ably = new Ably.Realtime("YOUR_ABLY_API_KEY");
-const channel = ably.channels.get("social-chat");
+/* DOM */
+const messagesDiv = document.getElementById("messages");
+const usersList = document.getElementById("usersList");
+const typingDiv = document.getElementById("typing");
+const msgInput = document.getElementById("msgInput");
+const sendBtn = document.getElementById("sendBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const youInfo = document.getElementById("youInfo");
 
-// --- Presence ---
-const presenceChannel = ably.channels.get("social-chat");
-const usersDiv = document.getElementById("users");
-presenceChannel.presence.enter(currentUser ? currentUser.email : "Anonymous");
+/* helper to create avatar element */
+function makeAvatarEl(src, size=36){
+  const img = document.createElement('img');
+  img.src = src;
+  img.width = size; img.height = size;
+  img.className = "avatar";
+  img.alt = "avatar";
+  return img;
+}
 
-presenceChannel.presence.subscribe((member) => updateUsers());
-presenceChannel.presence.get((err, members) => updateUsers());
+/* ensure user is signed in, otherwise redirect */
+async function ensureSignedIn(){
+  const { data } = await supabase.auth.getSession();
+  if(!data.session) {
+    // not signed in -> go to login
+    window.location.href = "login.html";
+    return false;
+  }
+  const userResp = await supabase.auth.getUser();
+  currentUser = userResp.data.user;
+  return true;
+}
 
-function updateUsers() {
-  presenceChannel.presence.get((err, members) => {
-    usersDiv.innerHTML = "";
-    members.forEach(m => {
-      const div = document.createElement("div");
-      div.className = "user";
-      div.textContent = m.clientId;
-      usersDiv.appendChild(div);
-    });
+/* init function */
+async function init(){
+  const ok = await ensureSignedIn();
+  if(!ok) return;
+
+  // show basic user info
+  youInfo.textContent = currentUser.email;
+
+  // initialize Ably AFTER we have the user (so clientId can be email)
+  ably = new Ably.Realtime({ key: ABLY_API_KEY });
+  channel = ably.channels.get("social-chat");
+  presenceChannel = ably.channels.get("social-chat");
+
+  // enter presence with clientId set to user's email (Ably uses clientId in presence)
+  presenceChannel.presence.enter(currentUser.email, { avatar: DEFAULT_AVATAR_PATH });
+
+  // presence updates
+  presenceChannel.presence.subscribe(updateUsers);
+  presenceChannel.presence.get(updateUsers);
+
+  // subscribe to messages + typing
+  channel.subscribe("message", handleAblyMessage);
+  channel.subscribe("typing", handleTyping);
+
+  // load history from Supabase DB
+  await loadHistory();
+
+  // setup UI handlers
+  sendBtn.addEventListener("click", sendMessage);
+  msgInput.addEventListener("keydown", onInputKeydown);
+  msgInput.addEventListener("input", onInputChange);
+
+  logoutBtn.addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    window.location.href = "login.html";
   });
 }
 
-// --- Messages ---
-const messagesDiv = document.getElementById("messages");
-const typingDiv = document.getElementById("typing");
-let typingTimeout = null;
+/* update users list using presence.get result or presence events */
+function updateUsers(err, members){
+  // presence.get callback or subscribe passes different args, normalize:
+  let list = [];
+  if(Array.isArray(err) && members === undefined){
+    // first arg is array
+    list = err;
+  } else if(Array.isArray(members)){
+    list = members;
+  } else if(Array.isArray(arguments[0]) && arguments.length === 1){
+    list = arguments[0];
+  } else if(Array.isArray(arguments[1])){
+    list = arguments[1];
+  }
 
-// Load chat history from Supabase
-async function loadHistory() {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .order('created_at', { ascending: true });
-  if(error) console.log(error);
-  else {
-    data.forEach(msg => displayMessage(msg.user_id, msg.content, msg.user_id === currentUser.email));
+  // fallback if presence.get was used with (err, members)
+  if(!list.length && arguments.length >= 2 && Array.isArray(arguments[1])) list = arguments[1];
+
+  usersList.innerHTML = "";
+  (list || []).forEach(m => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "user";
+
+    // avatar from presence data or default
+    const avatarSrc = (m.data && m.data.avatar) ? m.data.avatar : DEFAULT_AVATAR_PATH;
+    const avatar = makeAvatarEl(avatarSrc);
+    wrapper.appendChild(avatar);
+
+    const meta = document.createElement("div");
+    meta.className = "u-meta";
+    const name = document.createElement("div");
+    name.className = "u-name";
+    name.textContent = m.clientId || "Anon";
+    const status = document.createElement("div");
+    status.className = "u-status";
+    status.textContent = "online";
+    meta.appendChild(name);
+    meta.appendChild(status);
+
+    wrapper.appendChild(meta);
+    usersList.appendChild(wrapper);
+  });
+}
+
+/* load history from Supabase and render */
+async function loadHistory(){
+  try{
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, user_id, content, created_at')
+      .order('created_at', { ascending: true })
+      .limit(1000); // safe limit for initial load
+
+    if(error) { console.error("History load error:", error); return; }
+    messagesDiv.innerHTML = "";
+    data.forEach(row => {
+      const isSelf = (currentUser && row.user_id === currentUser.email);
+      appendMessageElement(row.user_id, row.content, isSelf, row.created_at);
+    });
+    // scroll down
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }catch(e){
+    console.error(e);
   }
 }
 
-// Display message
-function displayMessage(user, text, self=false) {
-  const div = document.createElement("div");
-  div.className = "message" + (self ? " self" : "");
-  div.textContent = `${user}: ${text}`;
-  messagesDiv.appendChild(div);
+/* append message element */
+function appendMessageElement(user, text, self=false, time=null){
+  const wrap = document.createElement("div");
+  wrap.className = "msg" + (self ? " self" : "");
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = user + (time ? (" • " + new Date(time).toLocaleTimeString()) : "");
+  const txt = document.createElement("div");
+  txt.className = "text";
+  txt.textContent = text;
+  wrap.appendChild(meta);
+  wrap.appendChild(txt);
+  messagesDiv.appendChild(wrap);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-// Subscribe to new messages in Ably
-channel.subscribe("message", msg => {
-  displayMessage(msg.clientId, msg.data, msg.clientId === currentUser.email);
-  typingDiv.textContent = "";
-});
+/* handle incoming ably message */
+function handleAblyMessage(msg){
+  // msg.clientId was set when publishing; Ably SDK sets client's clientId automatically for publisher
+  const publisher = msg.clientId || (msg.data && msg.data.user) || "Anon";
+  const content = (typeof msg.data === "string") ? msg.data : (msg.data && msg.data.text) || JSON.stringify(msg.data);
+  const isSelf = currentUser && publisher === currentUser.email;
+  appendMessageElement(publisher, content, isSelf);
+}
 
-// --- Send message ---
-async function sendMessage() {
-  const input = document.getElementById("msgInput");
-  const text = input.value.trim();
+/* typing handler */
+let typingTimeout = null;
+function handleTyping(msg){
+  typingDiv.textContent = msg.data || "";
+  if(typingTimeout) clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(()=> typingDiv.textContent = "", 2500);
+}
+
+/* send message: save to Supabase then publish to Ably */
+async function sendMessage(){
+  const text = msgInput.value.trim();
   if(!text) return;
-  input.value = "";
+  msgInput.value = "";
 
   const userEmail = currentUser ? currentUser.email : "Anonymous";
 
-  // Save to Supabase
-  await supabase.from('messages').insert([{ user_id: userEmail, content: text }]);
+  // insert into Supabase
+  try{
+    const { error } = await supabase.from('messages').insert([
+      { user_id: userEmail, content: text }
+    ]);
+    if(error) console.error("Insert error:", error);
+  }catch(e){
+    console.error(e);
+  }
 
-  // Publish to Ably
-  channel.publish("message", text);
+  // publish to Ably
+  try{
+    channel.publish("message", text, (err) => {
+      if(err) console.error("Ably publish error:", err);
+    });
+  }catch(e){
+    console.error("Ably error:", e);
+  }
 }
 
-// --- Typing detection ---
-const inputField = document.getElementById("msgInput");
-inputField.addEventListener("input", () => {
-  channel.publish("typing", currentUser ? `${currentUser.email} is typing...` : "Anonymous is typing...");
-});
+/* typing notifications */
+let lastTypedAt = 0;
+function onInputChange(){
+  const now = Date.now();
+  // throttle typing events to once per 1.2s
+  if(now - lastTypedAt > 1200){
+    const who = currentUser ? currentUser.email : "Anonymous";
+    channel.publish("typing", `${who} is typing...`);
+    lastTypedAt = now;
+  }
+}
 
-// Load history on page load
-loadHistory();
+/* allow send on Enter, Shift+Enter = newline */
+function onInputKeydown(e){
+  if(e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+/* start */
+init();
 </script>
-
 </body>
 </html>
