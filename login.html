@@ -21,7 +21,6 @@
   .card {
     background: rgba(255, 255, 255, 0.15);
     backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
     padding: 40px;
     border-radius: 20px;
     width: 330px;
@@ -107,14 +106,25 @@
 <div class="card">
   <h2 id="modeTitle">Login</h2>
 
-  <input id="email" type="email" placeholder="Email" />
-
-  <div class="password-wrapper">
-    <input id="password" type="password" placeholder="Password" />
-    <span class="show-hide" onclick="togglePassword()">Show</span>
+  <!-- LOGIN FORM -->
+  <div id="loginForm">
+    <input id="loginEmail" type="email" placeholder="Email" />
+    <div class="password-wrapper">
+      <input id="loginPassword" type="password" placeholder="Password" />
+      <span class="show-hide" onclick="togglePassword('loginPassword')">Show</span>
+    </div>
+    <button onclick="login()">Login</button>
   </div>
 
-  <button id="authButton" onclick="authenticate()">Login</button>
+  <!-- SIGNUP FORM -->
+  <div id="signupForm" style="display:none;">
+    <input id="signupEmail" type="email" placeholder="Email" />
+    <div class="password-wrapper">
+      <input id="signupPassword" type="password" placeholder="Password" />
+      <span class="show-hide" onclick="togglePassword('signupPassword')">Show</span>
+    </div>
+    <button onclick="signup()">Create Account</button>
+  </div>
 
   <div id="toggleDiv" class="toggle" onclick="toggleMode()">
     Don't have an account? Create one
@@ -125,77 +135,77 @@
 
 <script>
 const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbGlkcXVkc2Rmb3l6YmFtd3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NjEyMTMsImV4cCI6MjA3OTMzNzIxM30.Hhf5C14okA4GbYpLUmRugymI-E9YerunpVBgz5eZxrE";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_ANON_KEY = "YOUR_KEY_HERE";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let mode = "login";
 
 function toggleMode() {
   mode = mode === "login" ? "signup" : "login";
 
-  document.getElementById("modeTitle").innerText = mode === "login" ? "Login" : "Create Account";
-  document.getElementById("authButton").innerText = mode === "login" ? "Login" : "Sign Up";
-  document.getElementById("toggleDiv").innerText = mode === "login"
-    ? "Don't have an account? Create one"
-    : "Already have an account? Login";
+  document.getElementById("modeTitle").innerText =
+    mode === "login" ? "Login" : "Create Account";
 
-  const status = document.getElementById("status");
-  status.innerText = "";
-  status.className = "";
+  document.getElementById("loginForm").style.display =
+    mode === "login" ? "block" : "none";
+
+  document.getElementById("signupForm").style.display =
+    mode === "signup" ? "block" : "none";
+
+  document.getElementById("toggleDiv").innerText =
+    mode === "login"
+      ? "Don't have an account? Create one"
+      : "Already have an account? Login";
+
+  document.getElementById("status").innerText = "";
 }
 
-function togglePassword() {
-  const passInput = document.getElementById("password");
-  const toggle = document.querySelector(".show-hide");
-  if (passInput.type === "password") {
-    passInput.type = "text";
+function togglePassword(id) {
+  const input = document.getElementById(id);
+  const toggle = input.nextElementSibling;
+  if (input.type === "password") {
+    input.type = "text";
     toggle.innerText = "Hide";
   } else {
-    passInput.type = "password";
+    input.type = "password";
     toggle.innerText = "Show";
   }
 }
 
-async function authenticate() {
-  const email = document.getElementById("email").value.trim();
-  const pass = document.getElementById("password").value.trim();
+async function login() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value.trim();
   const status = document.getElementById("status");
 
-  if (!email || !pass) {
-    status.innerText = "Please enter both email and password.";
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    status.innerText = "Invalid email or password.";
     status.className = "error";
-    return;
-  }
-
-  status.innerText = "Please wait...";
-  status.className = "";
-
-  if (mode === "login") {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) {
-      status.innerText = error.message.includes("Invalid login credentials")
-        ? "Account not found or wrong password."
-        : error.message;
-      status.className = "error";
-    } else {
-      status.innerText = "Login successful!";
-      status.className = "success";
-      setTimeout(() => window.location.href = "chat.html", 800);
-    }
   } else {
-    const { data, error } = await supabase.auth.signUp({ email, password: pass });
-    if (error) {
-      status.innerText = error.message.includes("User already registered")
-        ? "An account with this email already exists."
-        : error.message;
-      status.className = "error";
-    } else {
-      status.innerText = "Account created successfully! You can now log in.";
-      status.className = "success";
-      toggleMode(); // Switch to login automatically
-    }
+    status.innerText = "Login successful!";
+    status.className = "success";
+    setTimeout(() => window.location.href = "chat.html", 700);
+  }
+}
+
+async function signup() {
+  const email = document.getElementById("signupEmail").value.trim();
+  const password = document.getElementById("signupPassword").value.trim();
+  const status = document.getElementById("status");
+
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+
+  if (error) {
+    status.innerText = error.message;
+    status.className = "error";
+  } else {
+    status.innerText = "Account created! You can log in now.";
+    status.className = "success";
+    toggleMode();
   }
 }
 </script>
+
 </body>
 </html>
