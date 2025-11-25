@@ -129,8 +129,8 @@
 /*                          SUPABASE INITIALIZATION                           */
 /* -------------------------------------------------------------------------- */
 
-const SUPABASE_URL = "https://YOURPROJECTID.supabase.co";
-const SUPABASE_PUBLIC_KEY = "YOUR_PUBLISHABLE_KEY";
+const SUPABASE_URL = "fplidqudsdfoyzbamwxy.supabase.co";
+const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
 
 const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
@@ -292,7 +292,7 @@ window.logout = logout;
 
 import Ably from "https://cdn.ably.io/lib/ably.min-1.js";
 
-const ably = new Ably.Realtime.Promise({ key: "YOUR_ABLY_KEY" });
+const ably = new Ably.Realtime.Promise({ key: "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I" });
 const channel = ably.channels.get("main");
 
 channel.subscribe("new-message", (msg) => {
