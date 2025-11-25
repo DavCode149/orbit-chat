@@ -1,411 +1,317 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Orbit Chat</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chat</title>
 
-<!-- Supabase + Ably -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/ably/browser/static/ably.min.js"></script>
-
-<script>
-/* --------------------- CONFIG: REPLACE THESE --------------------- */
-const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
-const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
-const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
-/* ----------------------------------------------------------------- */
-
-/* create a Supabase client using the global SDK object (don't shadow the name) */
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
-</script>
+<script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 
 <style>
-  :root{
-    --bg1:#4a00e0;
-    --bg2:#8e2de2;
-    --glass: rgba(255,255,255,0.12);
-    --glass-strong: rgba(255,255,255,0.18);
-    --white-soft: rgba(255,255,255,0.95);
-  }
-  html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
-  body{
-    background: linear-gradient(135deg,var(--bg1),var(--bg2));
-    color:var(--white-soft);
-    -webkit-font-smoothing:antialiased;
-    -moz-osx-font-smoothing:grayscale;
+  body {
+    margin: 0;
+    height: 100vh;
+    background: linear-gradient(135deg, #4a00e0, #8e2de2);
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
-  /* Container */
-  .app {
-    height:100vh;
-    display:grid;
-    grid-template-columns:260px 1fr;
-    gap:20px;
-    padding:24px;
-    box-sizing:border-box;
-  }
-
-  /* Sidebar */
-  .sidebar {
-    background:var(--glass);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius:14px;
-    padding:18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-    display:flex;
-    flex-direction:column;
-    min-height:0;
-  }
-  .sidebar .top {
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    margin-bottom:12px;
-  }
-  .room-title { font-weight:700; font-size:16px; }
-  .logout-btn {
-    background:transparent;
-    color:var(--white-soft);
-    border:1px solid rgba(255,255,255,0.08);
-    padding:6px 10px;
-    border-radius:8px;
-    cursor:pointer;
-    font-size:13px;
-  }
-
-  .users-list { overflow:auto; margin-top:8px; padding-right:6px; }
-  .user {
-    display:flex; align-items:center; gap:10px;
-    padding:8px; border-radius:10px; margin-bottom:8px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.03), transparent);
-  }
-  .avatar {
-    width:36px;height:36px;border-radius:50%;flex:0 0 36px;object-fit:cover;border:2px solid rgba(255,255,255,0.08);
-  }
-  .user .u-meta { display:flex; flex-direction:column; line-height:1; }
-  .u-name { font-weight:600; font-size:14px; }
-  .u-status { font-size:12px; opacity:0.8; }
-
-  /* Main chat panel */
-  .panel {
-    display:flex; flex-direction:column; background:var(--glass);
-    padding:14px; border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-    min-height:0;
+  .container {
+    width: 90%;
+    max-width: 900px;
+    height: 90vh;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(14px);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,0,0,0.25);
   }
 
-  .messages {
-    flex:1; overflow:auto; padding:10px; display:flex; flex-direction:column; gap:8px;
+  .header {
+    padding: 20px;
+    color: white;
+    font-size: 22px;
+    font-weight: 700;
+    border-bottom: 2px solid rgba(255,255,255,0.2);
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
   }
 
   .msg {
-    max-width:70%;
-    padding:10px 12px;
-    border-radius:12px;
-    background: rgba(255,255,255,0.06);
-    line-height:1.35;
-    word-wrap:break-word;
-  }
-  .msg.self { margin-left:auto; background: rgba(255,255,255,0.22); color:#111; }
-  .msg .meta { font-size:12px; opacity:0.9; margin-bottom:6px; font-weight:600; }
-  .msg .text { font-size:14px; white-space:pre-wrap; }
-
-  .typing { font-size:13px; opacity:0.85; margin:6px 10px; }
-
-  .input-row {
-    display:flex; gap:10px; align-items:center; margin-top:12px;
-  }
-  .message-input {
-    flex:1; padding:12px 14px; border-radius:12px; border:none; outline:none;
-    background: rgba(255,255,255,0.06); color:var(--white-soft); font-size:14px;
-  }
-  .send-btn {
-    min-width:90px; padding:10px 14px; border-radius:12px; border:none; font-weight:700;
-    background:linear-gradient(90deg,#ffffff,#f1e8ff); color:#111; cursor:pointer;
+    margin-bottom: 15px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 12px;
+    width: fit-content;
+    max-width: 70%;
+    animation: fade 0.25s ease;
   }
 
-  /* Header small */
-  .header {
-    display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+  .self {
+    margin-left: auto;
+    background: rgba(255,255,255,0.45);
   }
-  .header .subtitle { opacity:0.9; font-size:13px; }
 
-  /* Responsive */
-  @media (max-width:900px){
-    .app { grid-template-columns:1fr; padding:12px; gap:12px; }
-    .sidebar { order:2; height:140px; overflow:auto; }
-    .panel { order:1; }
+  @keyframes fade {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .meta {
+    font-size: 12px;
+    color: #f1e8ff;
+    margin-bottom: 3px;
+  }
+
+  .text {
+    font-size: 15px;
+    color: white;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .inputRow {
+    padding: 15px;
+    display: flex;
+    gap: 10px;
+    border-top: 2px solid rgba(255,255,255,0.2);
+  }
+
+  #messageInput {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    font-size: 16px;
+  }
+
+  button {
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  #logout {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(255,255,255,0.4);
   }
 </style>
 </head>
+
 <body>
 
-<div class="app">
-  <!-- Sidebar / users -->
-  <aside class="sidebar">
-    <div class="top">
-      <div>
-        <div class="room-title">Orbit Chat</div>
-        <div class="subtitle" style="font-size:12px; opacity:0.85;">#general</div>
-      </div>
-      <button class="logout-btn" id="logoutBtn">Logout</button>
-    </div>
+<button id="logout" onclick="logout()">Logout</button>
 
-    <div style="font-size:13px; opacity:0.9; margin-bottom:8px;">Online</div>
-    <div class="users-list" id="usersList"></div>
-  </aside>
+<div class="container">
+  <div class="header">Chat</div>
+  <div id="messages"></div>
 
-  <!-- Main panel -->
-  <main class="panel">
-    <div class="header">
-      <div>
-        <div style="font-weight:700; font-size:18px;">#general</div>
-        <div class="subtitle">Public chat — Be kind, keep it safe</div>
-      </div>
-      <div id="youInfo" style="opacity:0.9; font-size:13px;"></div>
-    </div>
-
-    <div class="messages" id="messages"></div>
-
-    <div class="typing" id="typing"></div>
-
-    <div class="input-row">
-      <input id="msgInput" class="message-input" placeholder="Say something..." autocomplete="off" />
-      <button id="sendBtn" class="send-btn">Send</button>
-    </div>
-  </main>
+  <div class="inputRow">
+    <input id="messageInput" type="text" placeholder="Type a message..." />
+    <button onclick="sendMessage()">Send</button>
+  </div>
 </div>
 
 <script>
-/* default avatar (uploaded file). the platform will transform this local path into a usable URL */
-const DEFAULT_AVATAR_PATH = "/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png";
+/* -------------------------------------------------------------------------- */
+/*                          SUPABASE INITIALIZATION                           */
+/* -------------------------------------------------------------------------- */
+
+const SUPABASE_URL = "https://YOURPROJECTID.supabase.co";
+const SUPABASE_PUBLIC_KEY = "YOUR_PUBLISHABLE_KEY";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLIC_KEY
+);
+
+/* -------------------------------------------------------------------------- */
+/*                               USER SESSION                                  */
+/* -------------------------------------------------------------------------- */
 
 let currentUser = null;
-let ably = null;
-let channel = null;
-let presenceChannel = null;
 
-/* DOM */
-const messagesDiv = document.getElementById("messages");
-const usersList = document.getElementById("usersList");
-const typingDiv = document.getElementById("typing");
-const msgInput = document.getElementById("msgInput");
-const sendBtn = document.getElementById("sendBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-const youInfo = document.getElementById("youInfo");
-
-/* helper to create avatar element */
-function makeAvatarEl(src, size=36){
-  const img = document.createElement('img');
-  img.src = src;
-  img.width = size; img.height = size;
-  img.className = "avatar";
-  img.alt = "avatar";
-  return img;
-}
-
-/* ensure user is signed in, otherwise redirect */
-async function ensureSignedIn(){
+async function ensureSignedIn() {
   const { data } = await supabaseClient.auth.getSession();
-  if(!data.session) {
-    // not signed in -> go to login
+  if (!data.session) {
     window.location.href = "login.html";
-    return false;
+    return;
   }
+
   const userResp = await supabaseClient.auth.getUser();
   currentUser = userResp.data.user;
-  return true;
 }
 
-/* init function */
-async function init(){
-  const ok = await ensureSignedIn();
-  if(!ok) return;
+await ensureSignedIn();
 
-  // show basic user info
-  youInfo.textContent = currentUser.email;
+/* -------------------------------------------------------------------------- */
+/*                                MESSAGE AREA                                 */
+/* -------------------------------------------------------------------------- */
 
-  // initialize Ably AFTER we have the user (so clientId can be email)
-  ably = new Ably.Realtime({ key: ABLY_API_KEY });
-  channel = ably.channels.get("social-chat");
-  presenceChannel = ably.channels.get("social-chat");
+const messagesDiv = document.getElementById("messages");
 
-  // enter presence with clientId set to user's email (Ably uses clientId in presence)
-  presenceChannel.presence.enter(currentUser.email, { avatar: DEFAULT_AVATAR_PATH });
+/* Infinite scroll variables */
+let messagesLoaded = 0;
+const MESSAGES_PER_LOAD = 30;
+let loadingMore = false;
+let reachedEnd = false;
 
-  // presence updates
-  presenceChannel.presence.subscribe(updateUsers);
-  presenceChannel.presence.get(updateUsers);
+/* -------------------------------------------------------------------------- */
+/*                           INSERT MESSAGE HELPERS                            */
+/* -------------------------------------------------------------------------- */
 
-  // subscribe to messages + typing
-  channel.subscribe("message", handleAblyMessage);
-  channel.subscribe("typing", handleTyping);
-
-  // load history from Supabase DB
-  await loadHistory();
-
-  // setup UI handlers
-  sendBtn.addEventListener("click", sendMessage);
-  msgInput.addEventListener("keydown", onInputKeydown);
-  msgInput.addEventListener("input", onInputChange);
-
-  logoutBtn.addEventListener("click", async () => {
-    await supabaseClient.auth.signOut();
-    window.location.href = "login.html";
-  });
-}
-
-/* update users list using presence.get result or presence events */
-function updateUsers(err, members){
-  // presence.get callback or subscribe passes different args, normalize:
-  let list = [];
-  if(Array.isArray(err) && members === undefined){
-    // first arg is array
-    list = err;
-  } else if(Array.isArray(members)){
-    list = members;
-  } else if(Array.isArray(arguments[0]) && arguments.length === 1){
-    list = arguments[0];
-  } else if(Array.isArray(arguments[1])){
-    list = arguments[1];
-  }
-
-  // fallback if presence.get was used with (err, members)
-  if(!list.length && arguments.length >= 2 && Array.isArray(arguments[1])) list = arguments[1];
-
-  usersList.innerHTML = "";
-  (list || []).forEach(m => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "user";
-
-    // avatar from presence data or default
-    const avatarSrc = (m.data && m.data.avatar) ? m.data.avatar : DEFAULT_AVATAR_PATH;
-    const avatar = makeAvatarEl(avatarSrc);
-    wrapper.appendChild(avatar);
-
-    const meta = document.createElement("div");
-    meta.className = "u-meta";
-    const name = document.createElement("div");
-    name.className = "u-name";
-    name.textContent = m.clientId || "Anon";
-    const status = document.createElement("div");
-    status.className = "u-status";
-    status.textContent = "online";
-    meta.appendChild(name);
-    meta.appendChild(status);
-
-    wrapper.appendChild(meta);
-    usersList.appendChild(wrapper);
-  });
-}
-
-/* load history from Supabase and render */
-async function loadHistory(){
-  try{
-    const { data, error } = await supabaseClient
-      .from('messages')
-      .select('id, user_id, content, created_at')
-      .order('created_at', { ascending: true })
-      .limit(1000); // safe limit for initial load
-
-    if(error) { console.error("History load error:", error); return; }
-    messagesDiv.innerHTML = "";
-    data.forEach(row => {
-      const isSelf = (currentUser && row.user_id === currentUser.email);
-      appendMessageElement(row.user_id, row.content, isSelf, row.created_at);
-    });
-    // scroll down
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  }catch(e){
-    console.error(e);
-  }
-}
-
-/* append message element */
-function appendMessageElement(user, text, self=false, time=null){
+function appendMessage(user, text, self, time) {
   const wrap = document.createElement("div");
   wrap.className = "msg" + (self ? " self" : "");
+
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.textContent = user + (time ? (" • " + new Date(time).toLocaleTimeString()) : "");
+  meta.textContent =
+    user + (time ? " • " + new Date(time).toLocaleTimeString() : "");
+
   const txt = document.createElement("div");
   txt.className = "text";
   txt.textContent = text;
+
   wrap.appendChild(meta);
   wrap.appendChild(txt);
+
   messagesDiv.appendChild(wrap);
+}
+
+function insertMessageAtTop(user, text, self, time) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg" + (self ? " self" : "");
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent =
+    user + (time ? " • " + new Date(time).toLocaleTimeString() : "");
+
+  const txt = document.createElement("div");
+  txt.className = "text";
+  txt.textContent = text;
+
+  wrap.appendChild(meta);
+  wrap.appendChild(txt);
+
+  messagesDiv.prepend(wrap);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            LOAD MESSAGE HISTORY                             */
+/* -------------------------------------------------------------------------- */
+
+async function loadHistory(initial = false) {
+  if (loadingMore || reachedEnd) return;
+  loadingMore = true;
+
+  let scrollPos = messagesDiv.scrollHeight;
+
+  const { data, error } = await supabaseClient
+    .from("messages")
+    .select("id, user_id, content, created_at")
+    .order("created_at", { ascending: false })
+    .range(messagesLoaded, messagesLoaded + MESSAGES_PER_LOAD - 1);
+
+  if (error) {
+    console.error(error);
+    loadingMore = false;
+    return;
+  }
+
+  if (data.length === 0) {
+    reachedEnd = true;
+    loadingMore = false;
+    return;
+  }
+
+  data.reverse();
+
+  if (initial) messagesDiv.innerHTML = "";
+
+  data.forEach(m => {
+    const self = currentUser && m.user_id === currentUser.email;
+    insertMessageAtTop(m.user_id, m.content, self, m.created_at);
+  });
+
+  messagesLoaded += data.length;
+
+  if (!initial) {
+    messagesDiv.scrollTop =
+      messagesDiv.scrollHeight - scrollPos;
+  } else {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
+  loadingMore = false;
+}
+
+/* Load first 30 */
+await loadHistory(true);
+
+/* Load more when scrolled to top */
+messagesDiv.addEventListener("scroll", () => {
+  if (messagesDiv.scrollTop === 0) {
+    loadHistory(false);
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/*                                SEND MESSAGE                                 */
+/* -------------------------------------------------------------------------- */
+
+async function sendMessage() {
+  const text = document.getElementById("messageInput").value.trim();
+  if (!text) return;
+
+  await supabaseClient.from("messages").insert([
+    {
+      user_id: currentUser.email,
+      content: text
+    }
+  ]);
+
+  document.getElementById("messageInput").value = "";
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            REALTIME VIA ABLY                                */
+/* -------------------------------------------------------------------------- */
+
+const ably = new Ably.Realtime.Promise({ key: "YOUR_ABLY_KEY" });
+const channel = ably.channels.get("main");
+
+channel.subscribe("new-message", (msg) => {
+  const m = msg.data;
+  const self = m.user_id === currentUser.email;
+  appendMessage(m.user_id, m.content, self, m.created_at);
+
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
+});
+
+/* -------------------------------------------------------------------------- */
+/*                                   LOGOUT                                    */
+/* -------------------------------------------------------------------------- */
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  window.location.href = "login.html";
 }
 
-/* handle incoming ably message */
-function handleAblyMessage(msg){
-  // msg.clientId was set when publishing; Ably SDK sets client's clientId automatically for publisher
-  const publisher = msg.clientId || (msg.data && msg.data.user) || "Anon";
-  const content = (typeof msg.data === "string") ? msg.data : (msg.data && msg.data.text) || JSON.stringify(msg.data);
-  const isSelf = currentUser && publisher === currentUser.email;
-  appendMessageElement(publisher, content, isSelf);
-}
-
-/* typing handler */
-let typingTimeout = null;
-function handleTyping(msg){
-  typingDiv.textContent = msg.data || "";
-  if(typingTimeout) clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(()=> typingDiv.textContent = "", 2500);
-}
-
-/* send message: save to Supabase then publish to Ably */
-async function sendMessage(){
-  const text = msgInput.value.trim();
-  if(!text) return;
-  msgInput.value = "";
-
-  const userEmail = currentUser ? currentUser.email : "Anonymous";
-
-  // insert into Supabase
-  try{
-    const { error } = await supabaseClient.from('messages').insert([
-      { user_id: userEmail, content: text }
-    ]);
-    if(error) console.error("Insert error:", error);
-  }catch(e){
-    console.error(e);
-  }
-
-  // publish to Ably
-  try{
-    channel.publish("message", text, (err) => {
-      if(err) console.error("Ably publish error:", err);
-    });
-  }catch(e){
-    console.error("Ably error:", e);
-  }
-}
-
-/* typing notifications */
-let lastTypedAt = 0;
-function onInputChange(){
-  const now = Date.now();
-  // throttle typing events to once per 1.2s
-  if(now - lastTypedAt > 1200){
-    const who = currentUser ? currentUser.email : "Anonymous";
-    channel.publish("typing", `${who} is typing...`);
-    lastTypedAt = now;
-  }
-}
-
-/* allow send on Enter, Shift+Enter = newline */
-function onInputKeydown(e){
-  if(e.key === "Enter" && !e.shiftKey){
-    e.preventDefault();
-    sendMessage();
-  }
-}
-
-/* start */
-init();
 </script>
 </body>
 </html>
