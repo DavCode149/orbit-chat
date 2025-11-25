@@ -3,20 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Social Chat</title>
+<title>Orbit Chat</title>
 
 <!-- Supabase + Ably -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/ably/browser/static/ably.min.js"></script>
+
 <script>
 /* --------------------- CONFIG: REPLACE THESE --------------------- */
 const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
 const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
 const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
 /* ----------------------------------------------------------------- */
-  /* initialize clients */
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+
+/* create a Supabase client using the global SDK object (don't shadow the name) */
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
 </script>
+
 <style>
   :root{
     --bg1:#4a00e0;
@@ -144,7 +147,7 @@ const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
   <aside class="sidebar">
     <div class="top">
       <div>
-        <div class="room-title">Creature Chaos — Social Chat</div>
+        <div class="room-title">Orbit Chat</div>
         <div class="subtitle" style="font-size:12px; opacity:0.85;">#general</div>
       </div>
       <button class="logout-btn" id="logoutBtn">Logout</button>
@@ -179,7 +182,6 @@ const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
 /* default avatar (uploaded file). the platform will transform this local path into a usable URL */
 const DEFAULT_AVATAR_PATH = "/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png";
 
-
 let currentUser = null;
 let ably = null;
 let channel = null;
@@ -206,13 +208,13 @@ function makeAvatarEl(src, size=36){
 
 /* ensure user is signed in, otherwise redirect */
 async function ensureSignedIn(){
-  const { data } = await supabase.auth.getSession();
+  const { data } = await supabaseClient.auth.getSession();
   if(!data.session) {
     // not signed in -> go to login
     window.location.href = "login.html";
     return false;
   }
-  const userResp = await supabase.auth.getUser();
+  const userResp = await supabaseClient.auth.getUser();
   currentUser = userResp.data.user;
   return true;
 }
@@ -250,7 +252,7 @@ async function init(){
   msgInput.addEventListener("input", onInputChange);
 
   logoutBtn.addEventListener("click", async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     window.location.href = "login.html";
   });
 }
@@ -302,7 +304,7 @@ function updateUsers(err, members){
 /* load history from Supabase and render */
 async function loadHistory(){
   try{
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('messages')
       .select('id, user_id, content, created_at')
       .order('created_at', { ascending: true })
@@ -364,7 +366,7 @@ async function sendMessage(){
 
   // insert into Supabase
   try{
-    const { error } = await supabase.from('messages').insert([
+    const { error } = await supabaseClient.from('messages').insert([
       { user_id: userEmail, content: text }
     ]);
     if(error) console.error("Insert error:", error);
