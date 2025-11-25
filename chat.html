@@ -290,9 +290,9 @@ window.logout = logout;
 /*                              REALTIME (ABLY)                                */
 /* -------------------------------------------------------------------------- */
 
-import Ably from "https://cdn.ably.io/lib/ably.min-1.js";
+const ably = new Ably.Realtime("dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6");
 
-const ably = new Ably.Realtime.Promise({ key: "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I" });
+
 const channel = ably.channels.get("main");
 
 channel.subscribe("new-message", (msg) => {
