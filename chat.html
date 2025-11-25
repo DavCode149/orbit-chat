@@ -170,7 +170,7 @@
 <script>
 /* --------------------- CONFIG: REPLACE THESE --------------------- */
 const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbGlkcXVkc2Rmb3l6YmFtd3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NjEyMTMsImV4cCI6MjA3OTMzNzIxM30.Hhf5C14okA4GbYpLUmRugymI-E9YerunpVBgz5eZxrE";
+const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
 const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
 /* ----------------------------------------------------------------- */
 
@@ -178,7 +178,7 @@ const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I"
 const DEFAULT_AVATAR_PATH = "/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png";
 
 /* initialize clients */
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
 
 let currentUser = null;
 let ably = null;
