@@ -1,327 +1,535 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chat</title>
-  <style>
-    body {
-      margin: 0;
-      display: flex;
-      height: 100vh;
-      background: #f1f3f6;
-      font-family: Arial, sans-serif;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Social Chat (with profiles)</title>
 
-    /* ----- SIDEBAR ----- */
-    #sidebar {
-      width: 250px;
-      background: #222;
-      color: white;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-    #sidebar h2 {
-      margin: 0;
-      margin-bottom: 15px;
-      font-size: 20px;
-    }
-    .sidebar-item {
-      padding: 10px;
-      background: #333;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .sidebar-item:hover {
-      background: #444;
-    }
+<!-- Supabase v2 (global) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Ably global (non-module) -->
+<script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 
-    /* ----- MAIN CHAT AREA ----- */
-    #main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
+<style>
+  :root{
+    --bg1:#4a00e0;
+    --bg2:#8e2de2;
+    --glass: rgba(255,255,255,0.12);
+    --white-soft: rgba(255,255,255,0.95);
+  }
+  html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{
+    background: linear-gradient(135deg,var(--bg1),var(--bg2));
+    color:var(--white-soft);
+    -webkit-font-smoothing:antialiased;
+  }
 
-    #messages {
-      flex: 1;
-      overflow-y: scroll;
-      padding: 20px;
-      display: flex;
-      flex-direction: column-reverse;
-    }
+  /* Layout */
+  .app {
+    height:100vh;
+    display:grid;
+    grid-template-columns:260px 1fr;
+    gap:18px;
+    padding:20px;
+    box-sizing:border-box;
+  }
 
-    .message {
-      display: flex;
-      align-items: flex-start;
-      background: #fff;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      gap: 10px;
-      max-width: 500px;
-    }
+  /* Sidebar */
+  .sidebar {
+    background:var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius:14px;
+    padding:16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    display:flex; flex-direction:column;
+    gap:10px;
+  }
+  .sidebar h3 { margin:0 0 6px 0; font-size:16px; }
+  .profile-row { display:flex; gap:12px; align-items:center; }
+  .avatar-small { width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.08); }
 
-    .avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background-size: cover;
-      background-position: center;
-    }
+  .menu-btn {
+    padding:8px 10px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white-soft);cursor:pointer;
+  }
 
-    .msg-text {
-      display: flex;
-      flex-direction: column;
-    }
+  .users-list { overflow:auto; margin-top:8px; }
 
-    .msg-username {
-      font-weight: bold;
-      margin-bottom: 3px;
-    }
+  /* Panel */
+  .panel {
+    display:flex; flex-direction:column; background:var(--glass);
+    padding:14px; border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    min-height:0; overflow:hidden;
+  }
 
-    #input-area {
-      padding: 10px;
-      background: #fff;
-      display: flex;
-      gap: 10px;
-    }
+  .panel .header {
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+  }
+  .panel .header .title { font-weight:700; font-size:18px; }
+  .you-info { opacity:0.9; font-size:13px; }
 
-    #input-area input {
-      flex: 1;
-      padding: 10px;
-    }
+  .messages {
+    flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px-reverse;
+    gap:12px;
+  }
 
-    #input-area button {
-      padding: 10px 20px;
-    }
+  .message {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:10px; border-radius:12px; background: rgba(255,255,255,0.06); max-width:75%;
+  }
+  .message.self { margin-left:auto; background: rgba(255,255,255,0.22); color:#111; }
+  .message .meta { font-size:13px; font-weight:700; margin-bottom:6px; }
+  .message .text { font-size:14px; white-space:pre-wrap; }
 
-    /* ----- POPUP ----- */
-    #profile-popup {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 300px;
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.2);
-    }
-    #profile-popup input {
-      padding: 8px;
-      width: 100%;
-    }
-    #profile-popup button {
-      padding: 10px;
-    }
-  </style>
+  .input-row { display:flex; gap:10px; margin-top:12px; align-items:center; }
+  .message-input { flex:1; padding:12px;border-radius:12px;border:none; outline:none; background: rgba(255,255,255,0.06); color:var(--white-soft); }
+  .send-btn { padding:10px 14px; border-radius:10px; border:none; font-weight:700; background:linear-gradient(90deg,#fff,#f1e8ff); color:#111; cursor:pointer; }
+
+  /* profile popup */
+  .popup-backdrop {
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,0.4); z-index:999;
+  }
+  .popup {
+    width:320px; background:var(--white-soft); color:#111; border-radius:12px; padding:14px; box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  }
+  .popup input { width:100%; padding:8px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
+
+  @media (max-width:900px){
+    .app { grid-template-columns:1fr; padding:12px; }
+    .sidebar { order:2; height:150px; overflow:auto; }
+    .panel { order:1; }
+  }
+</style>
 </head>
 <body>
 
-  <!-- SIDEBAR -->
-  <div id="sidebar">
-    <h2>Menu</h2>
-    <div class="sidebar-item" onclick="openProfile()">Profile</div>
-  </div>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="profile-row">
+      <img id="meAvatar" class="avatar-small" src="/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png" alt="avatar">
+      <div>
+        <div id="meName" style="font-weight:700">Loading...</div>
+        <div style="font-size:12px;opacity:0.9" id="meEmail"></div>
+      </div>
+    </div>
 
-  <!-- MAIN CHAT -->
-  <div id="main">
-    <div id="messages"></div>
+    <button class="menu-btn" onclick="openProfile()">Edit Profile</button>
+    <button class="menu-btn" id="logoutBtn">Logout</button>
 
-    <div id="input-area">
-      <input id="messageInput" type="text" placeholder="Type a message…" />
-      <button onclick="sendMessage()">Send</button>
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,0.04)" />
+
+    <div style="font-size:13px; opacity:0.9;">Online</div>
+    <div class="users-list" id="usersList"></div>
+  </aside>
+
+  <!-- Main -->
+  <main class="panel">
+    <div class="header">
+      <div>
+        <div class="title">#general</div>
+        <div class="subtitle" style="opacity:0.85; font-size:13px;">Public chat — be kind</div>
+      </div>
+      <div class="you-info" id="youInfo">You</div>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div id="typing" style="font-size:13px; opacity:0.85; margin-top:6px;"></div>
+
+    <div class="input-row">
+      <textarea id="messageInput" class="message-input" rows="1" placeholder="Say something..." ></textarea>
+      <button id="sendBtn" class="send-btn">Send</button>
+    </div>
+  </main>
+</div>
+
+<!-- Profile popup -->
+<div class="popup-backdrop" id="popupBackdrop">
+  <div class="popup">
+    <h3>Edit profile</h3>
+    <label>Username</label>
+    <input id="usernameInput" placeholder="username" />
+    <label>Avatar URL (or leave blank for default)</label>
+    <input id="avatarInput" placeholder="avatar url" />
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+      <button id="saveProfileBtn">Save</button>
+      <button id="closeProfileBtn">Close</button>
     </div>
   </div>
+</div>
 
-  <!-- PROFILE POPUP -->
-  <div id="profile-popup">
-    <h3>Edit Profile</h3>
-    <input id="usernameInput" placeholder="Username" />
-    <input id="avatarInput" placeholder="Avatar URL" />
-    <button onclick="saveProfile()">Save</button>
-    <button onclick="closeProfile()">Close</button>
-  </div>
+<script type="module">
+/* --------------------- CONFIG - put your values here --------------------- */
+const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
+const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
+const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
+/* ------------------------------------------------------------------------- */
 
+/* default avatar path (uploaded image) */
+const DEFAULT_AVATAR = "/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png";
 
-  <!-- SUPABASE -->
-  <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+/* create Supabase client (global SDK attached to window) */
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
 
-    const supabase = createClient(
-      "https://fplidqudsdfoyzbamwxy.supabase.co",
-      "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI"
-    );
+/* DOM refs */
+const messagesDiv = document.getElementById("messages");
+const usersList = document.getElementById("usersList");
+const meAvatar = document.getElementById("meAvatar");
+const meName = document.getElementById("meName");
+const meEmail = document.getElementById("meEmail");
+const youInfo = document.getElementById("youInfo");
+const typingDiv = document.getElementById("typing");
 
-    let currentUser = null;
-    let loadingMessages = false;
-    let earliestMessageId = null;
+const popupBackdrop = document.getElementById("popupBackdrop");
+const usernameInput = document.getElementById("usernameInput");
+const avatarInput = document.getElementById("avatarInput");
+const saveProfileBtn = document.getElementById("saveProfileBtn");
+const closeProfileBtn = document.getElementById("closeProfileBtn");
+const openProfileBtn = document.querySelector('.menu-btn');
 
-    //------------------------------------
-    // LOGIN / FETCH USER PROFILE
-    //------------------------------------
-    async function initUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      currentUser = user;
+/* state */
+let currentUser = null;
+let currentProfile = null;
+let messagesLoaded = 0;
+const MESSAGES_PER_LOAD = 30;
+let loadingMore = false;
+let reachedEnd = false;
 
-      if (!currentUser) {
-        alert("Not logged in.");
-        return;
-      }
+/* Ably setup (global Ably included before this module) */
+const ably = new Ably.Realtime(ABLY_API_KEY);
+const presenceChannel = ably.channels.get("social-presence");
+const pubChannel = ably.channels.get("social-chat");
 
-      // Get existing profile
-      let { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", currentUser.id)
-        .single();
+/* --------------------- Helpers: UI render --------------------- */
+function makeAvatarImg(url, size = 40) {
+  const img = document.createElement("img");
+  img.src = url || DEFAULT_AVATAR;
+  img.width = size; img.height = size;
+  img.style.borderRadius = "50%";
+  img.style.objectFit = "cover";
+  img.style.border = "2px solid rgba(255,255,255,0.08)";
+  return img;
+}
 
-      if (!profile) {
-        // Auto-generate username: "user####"
-        const randomUser = "user" + Math.floor(Math.random() * 9000 + 1000);
+function renderMessageElement(username, avatar, text, self=false, time=null) {
+  const outer = document.createElement("div");
+  outer.className = "message" + (self ? " self" : "");
 
-        await supabase.from("profiles").insert({
-          id: currentUser.id,
-          username: randomUser,
-          avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=" + randomUser
-        });
+  const avatarWrap = document.createElement("div");
+  avatarWrap.style.flex = "0 0 44px";
+  const img = document.createElement("img");
+  img.src = avatar || DEFAULT_AVATAR;
+  img.className = "avatar";
+  img.style.width = "44px";
+  img.style.height = "44px";
+  avatarWrap.appendChild(img);
 
-        profile = { username: randomUser };
-      }
+  const body = document.createElement("div");
+  body.style.display = "flex";
+  body.style.flexDirection = "column";
 
-      document.getElementById("usernameInput").value = profile.username;
-      document.getElementById("avatarInput").value = profile.avatar_url;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = username + (time ? (" • " + new Date(time).toLocaleTimeString()) : "");
+
+  const txt = document.createElement("div");
+  txt.className = "text";
+  txt.textContent = text;
+
+  body.appendChild(meta);
+  body.appendChild(txt);
+
+  outer.appendChild(avatarWrap);
+  outer.appendChild(body);
+
+  return outer;
+}
+
+/* Append at bottom (newer) */
+function appendMessage(username, avatar, text, self=false, time=null) {
+  const el = renderMessageElement(username, avatar, text, self, time);
+  messagesDiv.appendChild(el);
+  // autoscroll to bottom
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+/* Insert older messages at top while retaining scroll */
+function insertMessageAtTop(username, avatar, text, self=false, time=null) {
+  const prevHeight = messagesDiv.scrollHeight;
+  const el = renderMessageElement(username, avatar, text, self, time);
+  messagesDiv.prepend(el);
+  // keep scroll position stable
+  messagesDiv.scrollTop = messagesDiv.scrollHeight - prevHeight;
+}
+
+/* --------------------- Auth & profile --------------------- */
+async function ensureSignedInAndProfile() {
+  const { data } = await supabaseClient.auth.getSession();
+  if (!data.session) {
+    window.location.href = "login.html";
+    return false;
+  }
+
+  const userResp = await supabaseClient.auth.getUser();
+  currentUser = userResp.data.user;
+
+  // show email in sidebar
+  meEmail.textContent = currentUser.email;
+  youInfo.textContent = currentUser.email.split("@")[0];
+
+  // fetch or create profile
+  let { data: profile, error } = await supabaseClient
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .eq("id", currentUser.id)
+    .maybeSingle();
+
+  if (error) { console.error("profile fetch error", error); }
+
+  if (!profile) {
+    // generate user#### name and default avatar (DiceBear) but prefer uploaded default if you want
+    const randomName = "user" + Math.floor(1000 + Math.random() * 9000);
+    const avatarUrl = DEFAULT_AVATAR; // or use DiceBear: `https://api.dicebear.com/7.x/bottts/svg?seed=${randomName}`
+    const { error: insErr } = await supabaseClient.from("profiles").insert([
+      { id: currentUser.id, username: randomName, avatar_url: avatarUrl }
+    ]);
+    if (insErr) console.error("insert profile error", insErr);
+    profile = { id: currentUser.id, username: randomName, avatar_url: avatarUrl };
+  } else {
+    // fill defaults if missing
+    if (!profile.avatar_url) {
+      profile.avatar_url = DEFAULT_AVATAR;
+      await supabaseClient.from("profiles").update({ avatar_url: profile.avatar_url }).eq('id', currentUser.id);
     }
-
-    //------------------------------------
-    // SAVE PROFILE
-    //------------------------------------
-    async function saveProfile() {
-      const username = document.getElementById("usernameInput").value;
-      const avatar = document.getElementById("avatarInput").value;
-
-      await supabase
-        .from("profiles")
-        .update({ username, avatar_url: avatar })
-        .eq("id", currentUser.id);
-
-      closeProfile();
+    if (!profile.username) {
+      const randomName = "user" + Math.floor(1000 + Math.random() * 9000);
+      profile.username = randomName;
+      await supabaseClient.from("profiles").update({ username: randomName }).eq('id', currentUser.id);
     }
+  }
 
-    window.openProfile = () => {
-      document.getElementById("profile-popup").style.display = "flex";
-    };
-    window.closeProfile = () => {
-      document.getElementById("profile-popup").style.display = "none";
-    };
+  currentProfile = profile;
+  // update sidebar UI
+  meName.textContent = currentProfile.username || currentUser.email.split("@")[0];
+  meAvatar.src = currentProfile.avatar_url || DEFAULT_AVATAR;
+  usernameInput.value = currentProfile.username;
+  avatarInput.value = currentProfile.avatar_url || "";
 
-    //------------------------------------
-    // SEND MESSAGE
-    //------------------------------------
-    window.sendMessage = async function () {
-      const input = document.getElementById("messageInput");
-      const text = input.value.trim();
-      if (text.length === 0) return;
+  return true;
+}
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", currentUser.id)
-        .single();
+/* --------------------- Presence (Ably) --------------------- */
+function enterPresence() {
+  // use email as clientId
+  presenceChannel.presence.enter(currentUser.email, { avatar: currentProfile.avatar_url || DEFAULT_AVATAR, username: currentProfile.username });
+  // subscribe to presence updates
+  presenceChannel.presence.subscribe(() => updateUsersFromPresence());
+  presenceChannel.presence.get((err, members) => updateUsersFromPresence(err, members));
+}
 
-      await supabase.from("messages").insert({
-        user_id: currentUser.id,
-        username: profile.username,
-        avatar_url: profile.avatar_url,
-        content: text
-      });
+function updateUsersFromPresence(err, members) {
+  // normalize
+  let list = [];
+  if (Array.isArray(members)) list = members;
+  else if (Array.isArray(arguments[0])) list = arguments[0];
+  usersList.innerHTML = "";
+  (list || []).forEach(m => {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "10px";
+    row.style.padding = "6px";
+    row.style.borderRadius = "8px";
+    row.style.marginBottom = "6px";
+    const img = document.createElement("img");
+    img.src = (m.data && m.data.avatar) ? m.data.avatar : DEFAULT_AVATAR;
+    img.style.width = "36px"; img.style.height = "36px"; img.style.borderRadius = "50%";
+    const meta = document.createElement("div");
+    meta.style.fontSize = "13px"; meta.style.fontWeight = "600";
+    meta.textContent = m.clientId || "Anon";
+    row.appendChild(img);
+    row.appendChild(meta);
+    usersList.appendChild(row);
+  });
+}
 
-      input.value = "";
-    };
+/* --------------------- Load history (30 newest, page up to load older) --------------------- */
+async function loadHistory(initial = false) {
+  if (loadingMore || reachedEnd) return;
+  loadingMore = true;
 
-    //------------------------------------
-    // LOAD MESSAGES (LATEST 30)
-    //------------------------------------
-    async function loadMessages(initial = false) {
-      if (loadingMessages) return;
-      loadingMessages = true;
+  const prevHeight = messagesDiv.scrollHeight;
 
-      let query = supabase
-        .from("messages")
-        .select("*")
-        .order("id", { ascending: false })
-        .limit(30);
+  // load newest first (descending) then reverse to display oldest->newest
+  const { data, error } = await supabaseClient
+    .from('messages')
+    .select('id, user_id, content, created_at, profiles(username, avatar_url)')
+    .order('created_at', { ascending: false })
+    .range(messagesLoaded, messagesLoaded + MESSAGES_PER_LOAD - 1);
 
-      if (!initial && earliestMessageId) {
-        query = query.lt("id", earliestMessageId);
-      }
+  if (error) {
+    console.error("history load error:", error);
+    loadingMore = false;
+    return;
+  }
 
-      const { data } = await query;
+  if (!data || data.length === 0) {
+    reachedEnd = true;
+    loadingMore = false;
+    return;
+  }
 
-      if (data.length > 0) {
-        if (!earliestMessageId) earliestMessageId = data[data.length - 1].id;
-        else earliestMessageId = data[data.length - 1].id;
+  // reverse so we append oldest first
+  data.reverse();
 
-        data.forEach(msg => addMessageToUI(msg, false));
-      }
+  if (initial) messagesDiv.innerHTML = "";
 
-      loadingMessages = false;
+  for (const row of data) {
+    const profile = (row.profiles && row.profiles.length) ? row.profiles[0] : null;
+    const username = profile ? profile.username : (row.user_id === currentUser.id ? currentProfile.username : "Unknown");
+    const avatar = profile ? profile.avatar_url : DEFAULT_AVATAR;
+    const self = currentUser && row.user_id === currentUser.id;
+    // insert at top (older messages)
+    insertMessageAtTop(username, avatar, row.content, self, row.created_at);
+  }
+
+  messagesLoaded += data.length;
+
+  if (!initial) {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight - prevHeight;
+  } else {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
+  loadingMore = false;
+}
+
+/* infinite scroll up */
+messagesDiv.addEventListener('scroll', () => {
+  if (messagesDiv.scrollTop === 0) {
+    loadHistory(false);
+  }
+});
+
+/* --------------------- Send message (insert into messages table) --------------------- */
+async function sendMessage() {
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+
+  // insert row; messages table should have user_id (uuid) and content (text)
+  const { error } = await supabaseClient.from('messages').insert([
+    { user_id: currentUser.id, content: text }
+  ]);
+  if (error) {
+    console.error("insert error", error);
+    return;
+  }
+
+  // append locally immediately for snappy UI (profile known)
+  appendMessage(currentProfile.username, currentProfile.avatar_url || DEFAULT_AVATAR, text, true, new Date().toISOString());
+
+  // pubChannel can be used for additional custom realtime events (optional)
+  try {
+    pubChannel.publish('chat-event', { type: 'sent', user_id: currentUser.id });
+  } catch(e) { /* non-fatal */ }
+}
+window.sendMessage = sendMessage;
+
+/* --------------------- Realtime: listen for INSERTS and show them --------------------- */
+supabaseClient
+  .channel('public:messages')
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+    const row = payload.new;
+    // if this row was inserted by current user we already appended it locally
+    if (row.user_id === currentUser.id) return;
+
+    // fetch profile for this user (profiles table)
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', row.user_id)
+      .maybeSingle();
+
+    const username = profile ? profile.username : row.user_id;
+    const avatar = profile ? profile.avatar_url : DEFAULT_AVATAR;
+    appendMessage(username, avatar, row.content, false, row.created_at);
+  })
+  .subscribe();
+
+/* --------------------- Presence: enter and update list --------------------- */
+function startPresence() {
+  presenceChannel.presence.enter(currentUser.email, { avatar: currentProfile.avatar_url || DEFAULT_AVATAR, username: currentProfile.username });
+  presenceChannel.presence.subscribe(() => updateUsersFromPresence());
+  presenceChannel.presence.get((err, members) => updateUsersFromPresence(err, members));
+}
+
+/* --------------------- Profile editing --------------------- */
+function openProfile() {
+  popupBackdrop.style.display = "flex";
+  usernameInput.value = currentProfile.username || "";
+  avatarInput.value = currentProfile.avatar_url || "";
+}
+function closeProfile() {
+  popupBackdrop.style.display = "none";
+}
+window.openProfile = openProfile;
+window.closeProfile = closeProfile;
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  window.location.href = 'login.html';
+});
+
+saveProfileBtn.addEventListener('click', async () => {
+  const newUsername = usernameInput.value.trim();
+  const newAvatar = avatarInput.value.trim() || DEFAULT_AVATAR;
+
+  // update profiles table
+  const { error } = await supabaseClient.from('profiles').upsert([
+    { id: currentUser.id, username: newUsername, avatar_url: newAvatar }
+  ], { returning: 'minimal' });
+
+  if (error) {
+    console.error("profile save error", error);
+  } else {
+    currentProfile.username = newUsername;
+    currentProfile.avatar_url = newAvatar;
+    meName.textContent = newUsername;
+    meAvatar.src = newAvatar;
+    closeProfile();
+
+    // update presence data so other users see changed avatar/username
+    presenceChannel.presence.update({ avatar: newAvatar, username: newUsername });
+  }
+});
+
+/* --------------------- Init flow --------------------- */
+(async function init(){
+  const ok = await ensureSignedInAndProfile();
+  if (!ok) return;
+
+  // show brief UI
+  youInfo.textContent = currentUser.email.split('@')[0];
+
+  // start presence and pub/sub channels
+  enterPresence();
+  startPresence();
+
+  // load newest 30 messages
+  await loadHistory(true);
+
+  // wire send button + enter key
+  document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  const msgInput = document.getElementById('messageInput');
+  msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
-
-    //------------------------------------
-    // SCROLL TO LOAD MORE
-    //------------------------------------
-    document.getElementById("messages").addEventListener("scroll", async function () {
-      if (this.scrollTop > -10) {
-        await loadMessages(false);
-      }
-    });
-
-    //------------------------------------
-    // RENDER MESSAGE
-    //------------------------------------
-    function addMessageToUI(msg, realtime = true) {
-      const messagesDiv = document.getElementById("messages");
-      const el = document.createElement("div");
-      el.className = "message";
-
-      el.innerHTML = `
-        <div class="avatar" style="background-image:url('${msg.avatar_url || ""}')"></div>
-        <div class="msg-text">
-          <div class="msg-username">${msg.username || "Unknown"}</div>
-          <div>${msg.content}</div>
-        </div>
-      `;
-
-      if (realtime) {
-        messagesDiv.prepend(el);
-      } else {
-        messagesDiv.append(el);
-      }
-    }
-
-    //------------------------------------
-    // REALTIME SUBSCRIPTION
-    //------------------------------------
-    supabase
-      .channel("chat")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        addMessageToUI(payload.new, true);
-      })
-      .subscribe();
-
-    //------------------------------------
-    // INIT
-    //------------------------------------
-    initUser();
-    loadMessages(true);
-  </script>
-
+  });
+})();
+</script>
 </body>
 </html>
