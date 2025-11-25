@@ -8,7 +8,15 @@
 <!-- Supabase + Ably -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/ably/browser/static/ably.min.js"></script>
-
+<script>
+/* --------------------- CONFIG: REPLACE THESE --------------------- */
+const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
+const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
+const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
+/* ----------------------------------------------------------------- */
+  /* initialize clients */
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+</script>
 <style>
   :root{
     --bg1:#4a00e0;
@@ -168,17 +176,9 @@
 </div>
 
 <script>
-/* --------------------- CONFIG: REPLACE THESE --------------------- */
-const SUPABASE_URL = "https://fplidqudsdfoyzbamwxy.supabase.co";
-const SUPABASE_PUBLIC_KEY = "sb_publishable_OQInItoU8k9bocyqvvARmQ_nPej9ywI";
-const ABLY_API_KEY = "dCBOwQ.bGm1Sg:GFVHW6iRMtARjt2Vsfi4xINJshpQnwxIdeUciGcnY6I";
-/* ----------------------------------------------------------------- */
-
 /* default avatar (uploaded file). the platform will transform this local path into a usable URL */
 const DEFAULT_AVATAR_PATH = "/mnt/data/33edf7c5-8529-4cc8-8e28-083269e2fd3e.png";
 
-/* initialize clients */
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
 
 let currentUser = null;
 let ably = null;
